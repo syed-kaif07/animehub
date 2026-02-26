@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Anime Hub Dark Theme - Always dark */
+  --background: #0B0E11;
+  --foreground: #FFFFFF;
+  --card: #171B22;
+  --card-foreground: #FFFFFF;
+  --popover: #1A1F26;
+  --popover-foreground: #FFFFFF;
+  --primary: #22C55E;
+  --primary-foreground: #0B0E11;
+  --secondary: #12161C;
+  --secondary-foreground: #C7CBD1;
+  --muted: #12161C;
+  --muted-foreground: #8B9099;
+  --accent: #1A1F26;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --border: #242A33;
+  --input: #2F3540;
+  --ring: #22C55E;
+
+  --chart-1: #22C55E;
+  --chart-2: #4ADE80;
+  --chart-3: #16A34A;
+  --chart-4: #86EFAC;
+  --chart-5: #BBF7D0;
+
+  --radius: 0.625rem;
+
+  --sidebar: #12161C;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #22C55E;
+  --sidebar-primary-foreground: #0B0E11;
+  --sidebar-accent: #1A1F26;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #242A33;
+  --sidebar-ring: #22C55E;
+
+  /* Custom design tokens from spec */
+  --bg-main: #0B0E11;
+  --bg-panel: #12161C;
+  --bg-card: #171B22;
+  --bg-modal: #1A1F26;
+  --green-main: #22C55E;
+  --green-hover: #16A34A;
+  --green-glow: #4ADE80;
+  --text-main: #FFFFFF;
+  --text-secondary: #C7CBD1;
+  --text-muted: #8B9099;
+  --text-disabled: #5F636B;
+  --border-main: #242A33;
+  --border-input: #2F3540;
+}
+
+@theme inline {
+  --font-sans: 'Inter', 'Inter Fallback', sans-serif;
+  --font-heading: 'Poppins', 'Poppins Fallback', sans-serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Custom color tokens */
+  --color-bg-main: var(--bg-main);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-card: var(--bg-card);
+  --color-bg-modal: var(--bg-modal);
+  --color-green-main: var(--green-main);
+  --color-green-hover: var(--green-hover);
+  --color-green-glow: var(--green-glow);
+  --color-text-main: var(--text-main);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+  --color-border-main: var(--border-main);
+  --color-border-input: var(--border-input);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-main);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Green glow effect for buttons */
+.glow-green {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3), 0 0 40px rgba(34, 197, 94, 0.1);
+}
+
+/* Card hover animation */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: scale(1.04);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
