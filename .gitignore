@@ -25,3 +25,7 @@ yarn-error.log*
 next-env.d.ts
 
 .env.local
+
+#admin private files
+/app/admin
+/app/api/admin
