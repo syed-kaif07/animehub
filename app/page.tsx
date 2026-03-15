@@ -1,11 +1,21 @@
 import { HeroSection } from "@/components/hero-section";
 import { AnimeCard } from "@/components/anime-card";
 import { SectionHeader } from "@/components/section-header";
-import { trendingAnime, popularAnime, recentlyAdded, genres } from "@/lib/anime-data";
+import { fetchTrending, fetchRecentlyAdded, fetchAnimeList, genres } from "@/lib/anime-data";
 import Link from "next/link";
 import { TrendingUp, Flame, Clock, Sparkles } from "lucide-react";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [trendingAnime, recentlyAdded, allAnime] = await Promise.all([
+    fetchTrending(),
+    fetchRecentlyAdded(),
+    fetchAnimeList(),
+  ]);
+
+  const popularAnime = [...allAnime]
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 6);
+
   return (
     <div className="bg-bg-main">
       {/* Hero */}
@@ -122,7 +132,6 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          {/* Decorative element */}
           <div className="absolute -right-10 -top-10 h-60 w-60 rounded-full bg-green-main/5 blur-3xl" />
           <div className="absolute -bottom-10 -right-5 h-40 w-40 rounded-full bg-green-main/5 blur-2xl" />
         </div>

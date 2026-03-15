@@ -2,20 +2,37 @@
 
 import Link from "next/link";
 import { Play, Info, Star, Calendar } from "lucide-react";
-import { trendingAnime } from "@/lib/anime-data";
+import { fetchTrending } from "@/lib/anime-data";
+import type { Anime } from "@/lib/anime-data";
 import { useState, useEffect } from "react";
 
 export function HeroSection() {
+  const [featured, setFeatured] = useState<Anime[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const featured = trendingAnime.slice(0, 3);
-  const anime = featured[currentIndex];
 
   useEffect(() => {
+    fetchTrending().then((data) => setFeatured(data.slice(0, 3)));
+  }, []);
+
+  useEffect(() => {
+    if (featured.length === 0) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % featured.length);
     }, 6000);
     return () => clearInterval(interval);
   }, [featured.length]);
+
+  const anime = featured[currentIndex];
+
+  if (!anime) {
+    return (
+      <section className="relative h-[420px] w-full overflow-hidden bg-bg-card md:h-[480px]">
+        <div className="flex h-full items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-main border-t-transparent" />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative h-[420px] w-full overflow-hidden md:h-[480px]">
@@ -27,7 +44,6 @@ export function HeroSection() {
           className="h-full w-full object-cover transition-all duration-700"
           aria-hidden="true"
         />
-        {/* Overlays */}
         <div className="absolute inset-0 bg-gradient-to-r from-bg-main via-bg-main/80 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg-main via-transparent to-bg-main/30" />
       </div>
