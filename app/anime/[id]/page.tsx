@@ -141,13 +141,13 @@ function VideoPlayer({ anime }: { anime: Anime }) {
           max={100}
           value={progress}
           onChange={handleSeek}
-          className="w-full h-1 mb-3 accent-purple-500 cursor-pointer"
+          className="w-full h-1 mb-3 accent-green-500 cursor-pointer"
         />
 
         <div className="flex items-center justify-between text-white text-sm">
           <div className="flex items-center gap-3">
             {/* Play / Pause */}
-            <button onClick={() => setPlaying((p) => !p)} className="hover:text-purple-400 transition">
+            <button onClick={() => setPlaying((p) => !p)} className="hover:text-green-400 transition">
               {playing ? (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
@@ -160,7 +160,7 @@ function VideoPlayer({ anime }: { anime: Anime }) {
             </button>
 
             {/* Volume */}
-            <button onClick={() => setMuted((m) => !m)} className="hover:text-purple-400 transition">
+            <button onClick={() => setMuted((m) => !m)} className="hover:text-green-400 transition">
               {muted || volume === 0 ? (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06A8.99 8.99 0 0017.73 19L19 20.27 20.27 19 5.27 4 4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
@@ -178,7 +178,7 @@ function VideoPlayer({ anime }: { anime: Anime }) {
               step={0.05}
               value={muted ? 0 : volume}
               onChange={(e) => { setVolume(Number(e.target.value)); setMuted(false); }}
-              className="w-20 h-1 accent-purple-500 cursor-pointer"
+              className="w-20 h-1 accent-green-500 cursor-pointer"
             />
 
             {/* Time */}
@@ -188,7 +188,7 @@ function VideoPlayer({ anime }: { anime: Anime }) {
           </div>
 
           {/* Fullscreen */}
-          <button onClick={toggleFullscreen} className="hover:text-purple-400 transition">
+          <button onClick={toggleFullscreen} className="hover:text-green-400 transition">
             {fullscreen ? (
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
@@ -251,7 +251,7 @@ export default function WatchPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -260,7 +260,7 @@ export default function WatchPage() {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white gap-4">
         <p className="text-xl">Anime not found.</p>
-        <Link href="/" className="text-purple-400 hover:underline">
+        <Link href="/" className="text-green-400 hover:underline">
           ← Back to Home
         </Link>
       </div>
@@ -275,9 +275,9 @@ export default function WatchPage() {
           <div className="flex-1 min-w-0">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-              <Link href="/" className="hover:text-purple-400 transition">Home</Link>
+              <Link href="/" className="hover:text-green-400 transition">Home</Link>
               <span>/</span>
-              <Link href={`/anime/${anime.id}`} className="hover:text-purple-400 transition truncate">
+              <Link href={`/anime/${anime.id}`} className="hover:text-green-400 transition truncate">
                 {anime.title}
               </Link>
               <span>/</span>
@@ -291,7 +291,7 @@ export default function WatchPage() {
             <div className="mt-4">
               <h1 className="text-xl font-bold">
                 {anime.title}{" "}
-                <span className="text-purple-400">— Episode {selectedEp}</span>
+                <span className="text-green-400">— Episode {selectedEp}</span>
               </h1>
               {anime.studio && (
                 <p className="text-sm text-gray-400 mt-1">Studio: {anime.studio}</p>
@@ -308,7 +308,7 @@ export default function WatchPage() {
                     onClick={() => setSelectedEp(ep.number)}
                     className={`py-2 rounded-lg text-sm font-medium transition ${
                       selectedEp === ep.number
-                        ? "bg-purple-600 text-white"
+                        ? "bg-green-600 text-white"
                         : "bg-gray-800 text-gray-300 hover:bg-gray-700"
                     }`}
                   >
@@ -322,7 +322,7 @@ export default function WatchPage() {
             <div className="mt-8">
               <h2 className="text-lg font-semibold mb-4">Comments</h2>
               <div className="flex gap-3 mb-6">
-                <div className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-sm font-bold shrink-0">
+                <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-sm font-bold shrink-0">
                   U
                 </div>
                 <div className="flex-1 flex gap-2">
@@ -331,11 +331,11 @@ export default function WatchPage() {
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Add a comment…"
-                    className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-500"
+                    className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500"
                   />
                   <button
                     onClick={() => setComment("")}
-                    className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm transition"
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition"
                   >
                     Post
                   </button>
@@ -349,7 +349,7 @@ export default function WatchPage() {
                       {c.user[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-purple-300">{c.user}</p>
+                      <p className="text-sm font-medium text-green-400">{c.user}</p>
                       <p className="text-sm text-gray-300 mt-0.5">{c.text}</p>
                     </div>
                   </div>
