@@ -3,12 +3,42 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Play, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username },
+      },
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess("Account created! You can now sign in.");
+      setUsername("");
+      setEmail("");
+      setPassword("");
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-main px-4 py-12">
@@ -30,18 +60,28 @@ export default function SignupPage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-border-main bg-bg-card p-6">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-            }}
-            className="flex flex-col gap-4"
-          >
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+            {/* Error Message */}
+            {error && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            {/* Success Message */}
+            {success && (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+                {success}{" "}
+                <Link href="/login" className="underline font-medium">
+                  Sign in here
+                </Link>
+              </div>
+            )}
+
             {/* Username */}
             <div>
-              <label
-                htmlFor="username"
-                className="mb-1.5 block text-sm font-medium text-text-main"
-              >
+              <label htmlFor="username" className="mb-1.5 block text-sm font-medium text-text-main">
                 Username
               </label>
               <div className="relative">
@@ -60,10 +100,7 @@ export default function SignupPage() {
 
             {/* Email */}
             <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-text-main"
-              >
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-text-main">
                 Email
               </label>
               <div className="relative">
@@ -82,10 +119,7 @@ export default function SignupPage() {
 
             {/* Password */}
             <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-text-main"
-              >
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-text-main">
                 Password
               </label>
               <div className="relative">
@@ -98,6 +132,7 @@ export default function SignupPage() {
                   placeholder="Create a strong password"
                   className="h-11 w-full rounded-xl border border-border-input bg-bg-panel pl-10 pr-10 text-sm text-text-main placeholder:text-text-muted focus:border-green-main focus:outline-none"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -105,11 +140,7 @@ export default function SignupPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -123,37 +154,25 @@ export default function SignupPage() {
               />
               <span>
                 I agree to the{" "}
-                <Link
-                  href="/terms"
-                  className="text-green-main hover:underline"
-                >
-                  Terms of Service
-                </Link>{" "}
+                <Link href="/terms" className="text-green-main hover:underline">Terms of Service</Link>{" "}
                 and{" "}
-                <Link
-                  href="/privacy"
-                  className="text-green-main hover:underline"
-                >
-                  Privacy Policy
-                </Link>
+                <Link href="/privacy" className="text-green-main hover:underline">Privacy Policy</Link>
               </span>
             </label>
 
             {/* Submit */}
             <button
               type="submit"
-              className="glow-green mt-2 h-11 rounded-full bg-green-main text-sm font-semibold text-bg-main transition-all hover:-translate-y-0.5 hover:bg-green-hover"
+              disabled={loading}
+              className="glow-green mt-2 h-11 rounded-full bg-green-main text-sm font-semibold text-bg-main transition-all hover:-translate-y-0.5 hover:bg-green-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Create Account
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm text-text-muted">
             Already have an account?{" "}
-            <Link
-              href="/login"
-              className="font-medium text-green-main hover:underline"
-            >
+            <Link href="/login" className="font-medium text-green-main hover:underline">
               Sign In
             </Link>
           </div>

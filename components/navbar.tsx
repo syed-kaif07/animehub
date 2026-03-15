@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,8 +13,12 @@ import {
   Clock,
   User,
   Info,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const navLinks = [
   { href: "/", label: "Home", icon: Play },
@@ -29,6 +33,41 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Get session on mount and listen for auth changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setDropdownOpen(false);
+    window.location.href = "/";
+  };
+
+  const username = user?.user_metadata?.username || user?.email?.split("@")[0] || "User";
 
   return (
     <nav className="sticky top-0 z-50 h-16 border-b border-border-main bg-bg-main/85 backdrop-blur-md">
@@ -82,10 +121,7 @@ export function Navbar() {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchOpen(false);
-                    setSearchQuery("");
-                  }}
+                  onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
                   className="text-text-muted hover:text-text-main"
                   aria-label="Close search"
                 >
@@ -105,13 +141,51 @@ export function Navbar() {
           </div>
 
           {/* Auth */}
-          <Link
-            href="/login"
-            className="flex h-9 items-center gap-2 rounded-full border border-border-main px-4 text-sm font-medium text-text-secondary transition-colors hover:border-green-main hover:text-green-main"
-          >
-            <User className="h-4 w-4" />
-            Sign In
-          </Link>
+          {user ? (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex h-9 items-center gap-2 rounded-full border border-border-main px-4 text-sm font-medium text-text-secondary transition-colors hover:border-green-main hover:text-green-main"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-main text-xs font-bold text-bg-main">
+                  {username[0].toUpperCase()}
+                </div>
+                <span>{username}</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-border-main bg-bg-card py-1 shadow-lg">
+                  <Link
+                    href="/profile"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-secondary hover:text-text-main"
+                  >
+                    <User className="h-4 w-4" />
+                    Profile
+                  </Link>
+                  <div className="my-1 border-t border-border-main" />
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="flex h-9 items-center gap-2 rounded-full border border-border-main px-4 text-sm font-medium text-text-secondary transition-colors hover:border-green-main hover:text-green-main"
+            >
+              <User className="h-4 w-4" />
+              Sign In
+            </Link>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -121,11 +195,7 @@ export function Navbar() {
           className="flex h-10 w-10 items-center justify-center rounded-lg text-text-secondary md:hidden"
           aria-label="Toggle menu"
         >
-          {mobileMenuOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
@@ -174,14 +244,35 @@ export function Navbar() {
             })}
 
             <div className="mt-3 border-t border-border-main pt-3">
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary hover:text-text-main"
-              >
-                <User className="h-4 w-4" />
-                Sign In
-              </Link>
+              {user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary hover:text-text-main"
+                  >
+                    <User className="h-4 w-4" />
+                    {username}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-400 hover:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary hover:text-text-main"
+                >
+                  <User className="h-4 w-4" />
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         </div>

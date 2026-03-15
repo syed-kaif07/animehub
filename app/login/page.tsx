@@ -3,11 +3,33 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Play, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      window.location.href = "/";
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-main px-4 py-12">
@@ -29,12 +51,15 @@ export default function LoginPage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-border-main bg-bg-card p-6">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-            }}
-            className="flex flex-col gap-4"
-          >
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+            {/* Error Message */}
+            {error && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label
@@ -82,11 +107,7 @@ export default function LoginPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
@@ -100,10 +121,7 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <Link
-                href="#"
-                className="text-sm text-green-main hover:underline"
-              >
+              <Link href="#" className="text-sm text-green-main hover:underline">
                 Forgot password?
               </Link>
             </div>
@@ -111,18 +129,16 @@ export default function LoginPage() {
             {/* Submit */}
             <button
               type="submit"
-              className="glow-green mt-2 h-11 rounded-full bg-green-main text-sm font-semibold text-bg-main transition-all hover:-translate-y-0.5 hover:bg-green-hover"
+              disabled={loading}
+              className="glow-green mt-2 h-11 rounded-full bg-green-main text-sm font-semibold text-bg-main transition-all hover:-translate-y-0.5 hover:bg-green-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Sign In
+              {loading ? "Signing In..." : "Sign In"}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm text-text-muted">
             {"Don't have an account? "}
-            <Link
-              href="/signup"
-              className="font-medium text-green-main hover:underline"
-            >
+            <Link href="/signup" className="font-medium text-green-main hover:underline">
               Sign Up
             </Link>
           </div>
