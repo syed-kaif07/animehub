@@ -95,7 +95,7 @@ export async function searchAnimeDB(query: string): Promise<Anime[]> {
 // Fetch trending
 export async function fetchTrending(): Promise<Anime[]> {
   const { data, error } = await supabase
-    .from("anime").select("*").order("views", { ascending: false }).limit(6);
+    .from("anime").select("*").order("views", { ascending: false }).limit(50);
   if (error) return [];
   return data.map(mapAnime);
 }
@@ -103,7 +103,7 @@ export async function fetchTrending(): Promise<Anime[]> {
 // Fetch recently added
 export async function fetchRecentlyAdded(): Promise<Anime[]> {
   const { data, error } = await supabase
-    .from("anime").select("*").order("year", { ascending: false }).limit(6);
+    .from("anime").select("*").order("year", { ascending: false }).limit(10);
   if (error) return [];
   return data.map(mapAnime);
 }
