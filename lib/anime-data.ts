@@ -160,7 +160,7 @@ export async function updateAnime(id: string, updates: Partial<Anime>): Promise<
 
 // Generate episodes for watch page
 export function generateEpisodes(anime: Anime): Episode[] {
-  return Array.from({ length: Math.min(anime.episodes, 24) }, (_, i) => ({
+  return Array.from({ length: anime.episodes ?? 0 }, (_, i) => ({
     id: `${anime.id}-ep-${i + 1}`,
     animeId: anime.id,
     number: i + 1,

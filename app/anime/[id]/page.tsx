@@ -1,203 +1,232 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { fetchAnimeById, fetchAnimeByGenre } from "@/lib/anime-data";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+  Settings,
+  MessageSquare,
+  ThumbsUp,
+  Flag,
+  List,
+  Server,
+  ChevronRight,
+  ChevronLeft,
+  Subtitles,
+  Moon,
+  Bookmark,
+  Users,
+  FastForward,
+  Plus,
+  Bug,
+} from "lucide-react";
+import { fetchAnimeById, generateEpisodes, type Anime, type Episode } from "@/lib/anime-data";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ── Player Controls Bar ────────────────────────────────────────────
+function PlayerControlsBar({
+  currentEp,
+  totalEps,
+  animeId,
+}: {
+  currentEp: number;
+  totalEps: number;
+  animeId: string;
+}) {
+  const [autoNext, setAutoNext] = useState(true);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [autoSkip, setAutoSkip] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
 
-interface Anime {
-  id: string;
+  const base = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 select-none cursor-pointer";
+  const on  = "bg-green-main/20 text-green-main";
+  const off = "text-text-muted hover:text-text-main hover:bg-bg-panel";
+  const cls = (active: boolean) => `${base} ${active ? on : off}`;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1 rounded-xl border border-border-main bg-bg-card px-3 py-2">
+      <button type="button" onClick={() => setFocus(v => !v)} className={cls(focus)}>
+        <Moon className="h-3.5 w-3.5" /> Focus
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" onClick={() => setAutoNext(v => !v)} className={cls(autoNext)}>
+        <FastForward className="h-3.5 w-3.5 fill-current" /> AutoNext
+      </button>
+      <button type="button" onClick={() => setAutoPlay(v => !v)} className={cls(autoPlay)}>
+        <Play className="h-3.5 w-3.5 fill-current" /> AutoPlay
+      </button>
+      <button type="button" onClick={() => setAutoSkip(v => !v)} className={cls(autoSkip)}>
+        <SkipForward className="h-3.5 w-3.5" /> AutoSkip
+      </button>
+      <button type="button" className={`${base} ${off}`}>
+        <Plus className="h-3.5 w-3.5" /> Add Skiptime
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <Link
+        href={currentEp > 1 ? `/anime/${animeId}?ep=${currentEp - 1}` : "#"}
+        className={`${base} ${currentEp > 1 ? off : "text-text-disabled cursor-not-allowed pointer-events-none"}`}
+      >
+        <SkipBack className="h-3.5 w-3.5" /> Prev
+      </Link>
+      <Link
+        href={currentEp < totalEps ? `/anime/${animeId}?ep=${currentEp + 1}` : "#"}
+        className={`${base} ${currentEp < totalEps ? off : "text-text-disabled cursor-not-allowed pointer-events-none"}`}
+      >
+        Next <SkipForward className="h-3.5 w-3.5" />
+      </Link>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" onClick={() => setBookmarked(v => !v)} className={cls(bookmarked)}>
+        <Bookmark className={`h-3.5 w-3.5 ${bookmarked ? "fill-current" : ""}`} /> Bookmark
+      </button>
+      <button type="button" className={`${base} ${off}`}>
+        <Users className="h-3.5 w-3.5" /> W2G
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" className={`${base} text-text-muted hover:text-red-400 hover:bg-red-400/10`}>
+        <Bug className="h-3.5 w-3.5" /> Report
+      </button>
+    </div>
+  );
+}
+
+// ── Video Player ───────────────────────────────────────────────────
+function VideoPlayer({
+  title,
+  episode,
+  thumbnail,
+}: {
   title: string;
-  title_japanese?: string;
-  synopsis?: string;
-  cover_image?: string;
-  banner_image?: string;
-  rating?: number;
-  episodes?: number;
-  status?: string;
-  type?: string;
-  genres?: string[];
-  studio?: string;
-  year?: number;
-  season?: string;
-  duration?: string;
-  views?: number;
-}
-
-interface Episode {
-  number: number;
-  title: string;
-  duration: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateEpisodes(anime: Anime): Episode[] {
-  const count = anime.episodes ?? 12;
-  return Array.from({ length: count }, (_, i) => ({
-    number: i + 1,
-    title: `Episode ${i + 1}`,
-    duration: anime.duration ?? "24 min",
-  }));
-}
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-// ─── Video Player ─────────────────────────────────────────────────────────────
-
-function VideoPlayer({ anime }: { anime: Anime }) {
+  episode: number;
+  thumbnail: string;
+}) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration] = useState(1440); // 24 min placeholder
-  const [buffering, setBuffering] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [buffered, setBuffered] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration] = useState(1440);
   const containerRef = useRef<HTMLDivElement>(null);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fake playback tick
   useEffect(() => {
-    if (!playing) return;
-    const id = setInterval(() => {
-      setCurrentTime((t) => {
-        const next = t + 1;
-        setProgress((next / duration) * 100);
-        if (next >= duration) {
-          setPlaying(false);
-          return duration;
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(id);
+    const t = setInterval(() => setBuffered(b => Math.min(b + Math.random() * 2, 100)), 400);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (playing) {
+      progressTimer.current = setInterval(() => {
+        setCurrentTime(t => {
+          const next = t + 1;
+          setProgress((next / duration) * 100);
+          return next >= duration ? 0 : next;
+        });
+      }, 1000);
+    } else {
+      if (progressTimer.current) clearInterval(progressTimer.current);
+    }
+    return () => { if (progressTimer.current) clearInterval(progressTimer.current); };
   }, [playing, duration]);
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const pct = Number(e.target.value);
-    setProgress(pct);
-    setCurrentTime((pct / 100) * duration);
+  const resetControlsTimer = () => {
+    setShowControls(true);
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    if (playing) controlsTimer.current = setTimeout(() => setShowControls(false), 3000);
+  };
+
+  useEffect(() => {
+    return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
+  }, []);
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    setCurrentTime(pct * duration);
+    setProgress(pct * 100);
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
-      setFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setFullscreen(false);
-    }
+    if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setFullscreen(true); }
+    else { document.exitFullscreen(); setFullscreen(false); }
   };
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-video bg-black rounded-xl overflow-hidden group"
+      className="group relative aspect-video w-full overflow-hidden rounded-xl bg-black"
+      onMouseMove={resetControlsTimer}
+      onMouseLeave={() => playing && setShowControls(false)}
+      onClick={() => setPlaying(p => !p)}
     >
-      {/* Thumbnail / placeholder frame */}
-      {anime.banner_image && (
-        <img
-          src={anime.banner_image}
-          alt={anime.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-            playing ? "opacity-20" : "opacity-60"
-          }`}
-        />
-      )}
+      <img src={thumbnail} alt={title} className={`h-full w-full object-cover transition-opacity duration-300 ${playing ? "opacity-30" : "opacity-50"}`} />
 
-      {/* Centre play button */}
       {!playing && (
-        <button
-          onClick={() => { setBuffering(true); setTimeout(() => { setBuffering(false); setPlaying(true); }, 800); }}
-          className="absolute inset-0 flex items-center justify-center z-10"
-        >
-          <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition">
-            <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-green-main/90 shadow-2xl transition-transform hover:scale-110">
+            <Play className="h-9 w-9 fill-white text-white" />
           </div>
-        </button>
-      )}
-
-      {/* Buffering spinner */}
-      {buffering && (
-        <div className="absolute inset-0 flex items-center justify-center z-20">
-          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+          <p className="text-base font-semibold text-white drop-shadow">{title} — Episode {episode}</p>
+          <p className="mt-1 text-xs text-white/60">Click to play</p>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-3 pt-8 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        {/* Progress bar */}
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={progress}
-          onChange={handleSeek}
-          className="w-full h-1 mb-3 accent-green-500 cursor-pointer"
-        />
-
-        <div className="flex items-center justify-between text-white text-sm">
-          <div className="flex items-center gap-3">
-            {/* Play / Pause */}
-            <button onClick={() => setPlaying((p) => !p)} className="hover:text-green-400 transition">
-              {playing ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              )}
-            </button>
-
-            {/* Volume */}
-            <button onClick={() => setMuted((m) => !m)} className="hover:text-green-400 transition">
-              {muted || volume === 0 ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06A8.99 8.99 0 0017.73 19L19 20.27 20.27 19 5.27 4 4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                </svg>
-              )}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={muted ? 0 : volume}
-              onChange={(e) => { setVolume(Number(e.target.value)); setMuted(false); }}
-              className="w-20 h-1 accent-green-500 cursor-pointer"
-            />
-
-            {/* Time */}
-            <span className="text-xs text-white/70">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+      {playing && showControls && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/30">
+            <Pause className="h-7 w-7 text-white" />
           </div>
+        </div>
+      )}
 
-          {/* Fullscreen */}
-          <button onClick={toggleFullscreen} className="hover:text-green-400 transition">
-            {fullscreen ? (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-              </svg>
-            )}
+      <div
+        className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-4 pb-2 pt-4">
+          <p className="text-sm font-semibold text-white drop-shadow">{title} — Episode {episode}</p>
+        </div>
+        <div className="px-4 pb-2">
+          <div className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/20 hover:h-2.5 transition-all duration-150" onClick={handleProgressClick}>
+            <div className="absolute left-0 top-0 h-full rounded-full bg-white/30" style={{ width: `${buffered}%` }} />
+            <div className="absolute left-0 top-0 h-full rounded-full bg-green-main" style={{ width: `${progress}%` }} />
+            <div className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-md" style={{ left: `calc(${progress}% - 7px)` }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <button type="button" onClick={() => setPlaying(p => !p)} className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:text-green-main transition-colors">
+            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-white" />}
+          </button>
+          <button type="button" className="text-white/70 hover:text-white"><SkipBack className="h-4 w-4" /></button>
+          <button type="button" className="text-white/70 hover:text-white"><SkipForward className="h-4 w-4" /></button>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => setMuted(m => !m)} className="text-white/70 hover:text-white">
+              {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <input type="range" min={0} max={100} value={muted ? 0 : volume}
+              onChange={e => { setVolume(Number(e.target.value)); setMuted(false); }}
+              className="h-1 w-16 cursor-pointer accent-green-main"
+            />
+          </div>
+          <span className="ml-1 text-xs text-white/70">{formatTime(currentTime)} / {formatTime(duration)}</span>
+          <div className="flex-1" />
+          <button type="button" className="text-white/70 hover:text-white"><Subtitles className="h-4 w-4" /></button>
+          <button type="button" className="text-white/70 hover:text-white"><Settings className="h-4 w-4" /></button>
+          <button type="button" onClick={toggleFullscreen} className="text-white/70 hover:text-white">
+            {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -205,152 +234,269 @@ function VideoPlayer({ anime }: { anime: Anime }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ── Episodes Sidebar with Grid + Pagination + Find ─────────────────
+function EpisodesSidebar({
+  episodes,
+  currentEp,
+  animeId,
+  linkPrefix = "/anime",
+}: {
+  episodes: Episode[];
+  currentEp: number;
+  animeId: string;
+  linkPrefix?: string;
+}) {
+  const router = useRouter();
+  const PAGE_SIZE = 100;
+  const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
+  const [page, setPage] = useState(Math.ceil(currentEp / PAGE_SIZE) || 1);
+  const [findValue, setFindValue] = useState("");
 
-export default function WatchPage() {
+  useEffect(() => {
+    setPage(Math.ceil(currentEp / PAGE_SIZE) || 1);
+  }, [currentEp]);
+
+  const start = (page - 1) * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, episodes.length);
+  const visibleEpisodes = episodes.slice(start, end);
+
+  const pageLabel = (p: number) => {
+    const s = (p - 1) * PAGE_SIZE + 1;
+    const e = Math.min(p * PAGE_SIZE, episodes.length);
+    return `${String(s).padStart(3, "0")}-${String(e).padStart(3, "0")}`;
+  };
+
+  const handleFind = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const num = Number.parseInt(findValue.trim());
+    if (!num || num < 1 || num > episodes.length) return;
+    setPage(Math.ceil(num / PAGE_SIZE));
+    router.push(`${linkPrefix}/${animeId}?ep=${num}`);
+    setFindValue("");
+  };
+
+  return (
+    <div className="rounded-xl border border-border-main bg-bg-card">
+      {/* Header with Find */}
+      <div className="flex items-center gap-2 border-b border-border-main p-3">
+        <List className="h-4 w-4 text-green-main shrink-0" />
+        <span className="text-sm font-semibold text-text-main">Episodes</span>
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border-input bg-bg-panel px-2 py-1">
+          <span className="text-xs text-text-muted">#</span>
+          <input
+            type="number"
+            min={1}
+            max={episodes.length}
+            value={findValue}
+            onChange={e => setFindValue(e.target.value)}
+            onKeyDown={handleFind}
+            placeholder="Find"
+            className="w-14 bg-transparent text-xs text-text-main placeholder:text-text-muted outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+        </div>
+        <span className="text-xs text-text-muted shrink-0">{episodes.length} ep</span>
+      </div>
+
+      {/* Pagination bar — only for >100 episodes */}
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2 border-b border-border-main px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:text-text-main hover:bg-bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-xs font-medium text-text-main">{pageLabel(page)}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:text-text-main hover:bg-bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Episode Grid */}
+      <div className="max-h-[600px] overflow-y-auto p-3">
+        <div className="grid grid-cols-6 gap-1.5">
+          {visibleEpisodes.map((ep) => (
+            <Link
+              key={ep.id}
+              href={`${linkPrefix}/${animeId}?ep=${ep.number}`}
+              className={`flex items-center justify-center rounded-lg py-2 text-xs font-medium transition-colors ${
+                ep.number === currentEp
+                  ? "bg-green-main text-bg-main"
+                  : "bg-bg-panel text-text-secondary hover:bg-green-main/20 hover:text-green-main"
+              }`}
+            >
+              {ep.number}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────
+export default function AnimePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  const epParam = searchParams.get("ep");
+  const currentEp = epParam ? Number.parseInt(epParam) : 1;
 
   const [anime, setAnime] = useState<Anime | null>(null);
-  const [related, setRelated] = useState<Anime[]>([]);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
-  const [selectedEp, setSelectedEp] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [activeServer, setActiveServer] = useState(0);
   const [comment, setComment] = useState("");
-  const [comments] = useState<{ user: string; text: string }[]>([
+  const [comments] = useState([
     { user: "AniUser42", text: "This episode was insane! 🔥" },
     { user: "weeaboo99", text: "Can't wait for the next one." },
   ]);
 
+  const servers = ["Server 1 (HD)", "Server 2 (SD)", "Server 3 (Backup)"];
+
   useEffect(() => {
     if (!id) return;
-
-    async function load() {
-      setLoading(true);
-      try {
-        // ✅ Fixed: was getAnimeById(id) — now uses Supabase
-        const data = await fetchAnimeById(id);
-        if (!data) return;
-
-        setAnime(data);
-        setEpisodes(generateEpisodes(data));
-
-        // ✅ Fixed: was animeList.filter() on empty array — now uses Supabase
-        if (data.genres?.length) {
-          const rel = await fetchAnimeByGenre(data.genres[0]);
-          setRelated(rel.filter((a: Anime) => a.id !== id).slice(0, 6));
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
+    setLoading(true);
+    fetchAnimeById(id).then(data => {
+      if (!data) { setLoading(false); return; }
+      setAnime(data);
+      setEpisodes(generateEpisodes(data));
+      setLoading(false);
+    });
   }, [id]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-bg-main">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-main border-t-transparent" />
+          <p className="text-sm text-text-muted">Loading...</p>
+        </div>
       </div>
     );
   }
 
   if (!anime) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center text-white gap-4">
-        <p className="text-xl">Anime not found.</p>
-        <Link href="/" className="text-green-400 hover:underline">
-          ← Back to Home
-        </Link>
+      <div className="flex min-h-screen items-center justify-center bg-bg-main">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-text-main">Anime not found</h1>
+          <Link href="/" className="mt-4 text-green-main hover:underline">Go back home</Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* ── Left: player + info ── */}
+    <div className="min-h-screen bg-bg-main">
+      {/* Breadcrumb */}
+      <div className="mx-auto max-w-[1400px] px-4 py-3 lg:px-8">
+        <div className="flex items-center gap-2 text-sm text-text-muted">
+          <Link href="/" className="hover:text-green-main">Home</Link>
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-text-secondary truncate">{anime.title}</span>
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-text-secondary">Episode {currentEp}</span>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-[1400px] px-4 lg:px-8">
+        <div className="flex flex-col gap-6 lg:flex-row">
+
+          {/* Left: player + controls + info + comments */}
           <div className="flex-1 min-w-0">
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-              <Link href="/" className="hover:text-green-400 transition">Home</Link>
-              <span>/</span>
-              <Link href={`/anime/${anime.id}`} className="hover:text-green-400 transition truncate">
-                {anime.title}
-              </Link>
-              <span>/</span>
-              <span className="text-white">Episode {selectedEp}</span>
+            <VideoPlayer
+              title={anime.title}
+              episode={currentEp}
+              thumbnail={anime.bannerImage || anime.coverImage}
+            />
+
+            <PlayerControlsBar
+              currentEp={currentEp}
+              totalEps={episodes.length}
+              animeId={anime.id}
+            />
+
+            {/* Server Selection */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border-main bg-bg-card px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <Server className="h-3.5 w-3.5 text-text-muted" />
+                <span className="text-xs text-text-muted">Server:</span>
+              </div>
+              {servers.map((server, i) => (
+                <button
+                  key={server}
+                  type="button"
+                  onClick={() => setActiveServer(i)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                    i === activeServer ? "bg-green-main text-bg-main" : "bg-bg-panel text-text-secondary hover:text-text-main"
+                  }`}
+                >
+                  {server}
+                </button>
+              ))}
             </div>
 
-            {/* Player */}
-            <VideoPlayer anime={anime} />
-
-            {/* Episode title */}
-            <div className="mt-4">
-              <h1 className="text-xl font-bold">
-                {anime.title}{" "}
-                <span className="text-green-400">— Episode {selectedEp}</span>
-              </h1>
-              {anime.studio && (
-                <p className="text-sm text-gray-400 mt-1">Studio: {anime.studio}</p>
-              )}
-            </div>
-
-            {/* Episode list */}
-            <div className="mt-6">
-              <h2 className="text-lg font-semibold mb-3">Episodes</h2>
-              <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
-                {episodes.map((ep) => (
-                  <button
-                    key={ep.number}
-                    onClick={() => setSelectedEp(ep.number)}
-                    className={`py-2 rounded-lg text-sm font-medium transition ${
-                      selectedEp === ep.number
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                    }`}
-                  >
-                    {ep.number}
+            {/* Anime Info */}
+            <div className="mt-4 rounded-xl border border-border-main bg-bg-card p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="font-heading text-xl font-bold text-text-main">{anime.title}</h1>
+                  <p className="mt-0.5 text-sm text-text-muted">
+                    Episode {currentEp} &middot; {anime.duration} &middot; {anime.type}
+                  </p>
+                  {anime.studio && <p className="mt-0.5 text-xs text-text-muted">Studio: {anime.studio}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="flex h-9 items-center gap-1.5 rounded-lg bg-bg-panel px-3 text-sm text-text-secondary transition-colors hover:text-text-main">
+                    <ThumbsUp className="h-3.5 w-3.5" /> Like
                   </button>
-                ))}
+                  <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-bg-panel text-text-secondary transition-colors hover:text-text-main">
+                    <Flag className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Comments */}
-            <div className="mt-8">
-              <h2 className="text-lg font-semibold mb-4">Comments</h2>
+            <div className="mt-4 rounded-xl border border-border-main bg-bg-card p-4">
+              <h2 className="mb-4 text-sm font-semibold text-text-main flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" /> Comments
+              </h2>
               <div className="flex gap-3 mb-6">
-                <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-sm font-bold shrink-0">
-                  U
-                </div>
-                <div className="flex-1 flex gap-2">
+                <div className="h-9 w-9 rounded-full bg-green-main flex items-center justify-center text-sm font-bold text-bg-main shrink-0">U</div>
+                <div className="flex flex-1 gap-2">
                   <input
                     type="text"
                     value={comment}
-                    onChange={(e) => setComment(e.target.value)}
+                    onChange={e => setComment(e.target.value)}
                     placeholder="Add a comment…"
-                    className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500"
+                    className="flex-1 rounded-lg bg-bg-panel px-4 py-2 text-sm text-text-main placeholder:text-text-muted outline-none focus:ring-2 focus:ring-green-main border border-border-input"
                   />
-                  <button
-                    onClick={() => setComment("")}
-                    className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm transition"
-                  >
+                  <button onClick={() => setComment("")} className="bg-green-main hover:bg-green-main/90 px-4 py-2 rounded-lg text-sm text-bg-main font-medium transition">
                     Post
                   </button>
                 </div>
               </div>
-
               <div className="space-y-4">
                 {comments.map((c, i) => (
                   <div key={i} className="flex gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold shrink-0">
+                    <div className="h-9 w-9 rounded-full bg-bg-panel flex items-center justify-center text-sm font-bold text-text-main shrink-0">
                       {c.user[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-green-400">{c.user}</p>
-                      <p className="text-sm text-gray-300 mt-0.5">{c.text}</p>
+                      <p className="text-sm font-medium text-green-main">{c.user}</p>
+                      <p className="text-sm text-text-secondary mt-0.5">{c.text}</p>
                     </div>
                   </div>
                 ))}
@@ -358,39 +504,19 @@ export default function WatchPage() {
             </div>
           </div>
 
-          {/* ── Right: related anime ── */}
-          <aside className="w-full lg:w-80 shrink-0">
-            <h2 className="text-lg font-semibold mb-4">Related Anime</h2>
-            <div className="space-y-3">
-              {related.length === 0 && (
-                <p className="text-sm text-gray-500">No related anime found.</p>
-              )}
-              {related.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/watch/${r.id}`}
-                  className="flex gap-3 p-2 rounded-lg hover:bg-gray-800 transition"
-                >
-                  <img
-                    src={r.cover_image ?? "/placeholder.png"}
-                    alt={r.title}
-                    className="w-16 h-20 object-cover rounded-md shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium leading-snug line-clamp-2">{r.title}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {r.episodes ? `${r.episodes} eps` : r.type}
-                    </p>
-                    {r.rating && (
-                      <p className="text-xs text-yellow-400 mt-0.5">★ {r.rating}</p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </aside>
+          {/* Right: Episodes Sidebar */}
+          <div className="w-full lg:w-72 shrink-0">
+            <EpisodesSidebar
+              episodes={episodes}
+              currentEp={currentEp}
+              animeId={anime.id}
+              linkPrefix="/anime"
+            />
+          </div>
+
         </div>
       </div>
+      <div className="h-12" />
     </div>
   );
 }
