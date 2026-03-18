@@ -1,129 +1,549 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useParams, useSearchParams } from "next/navigation"
-import Link from "next/link"
-import ReactPlayer from "react-player"
-import { fetchAnimeById, generateEpisodes, type Anime } from "@/lib/anime-data"
+import { useState, useRef, useEffect } from "react";
+import { useSearchParams, useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+  Settings,
+  MessageSquare,
+  ThumbsUp,
+  Flag,
+  List,
+  Server,
+  ChevronLeft,
+  ChevronRight,
+  Subtitles,
+  Moon,
+  Bookmark,
+  Users,
+  FastForward,
+  Plus,
+  Bug,
+} from "lucide-react";
+import {
+  fetchAnimeById,
+  generateEpisodes,
+  type Anime,
+  type Episode,
+} from "@/lib/anime-data";
+import { Suspense } from "react";
 
-// ── Video Player ─────────────────────────────────
-function VideoPlayer({ url, loading }: { url: string; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="flex aspect-video items-center justify-center bg-black rounded-xl">
-        <p className="text-white">Loading video...</p>
-      </div>
-    )
-  }
+// ── Video URL ──────────────────────────────────────────────────────
+const TEST_VIDEO_URL =
+  "https://iovatdcantvchbkpanca.supabase.co/storage/v1/object/public/Videos/Salman%20Khan%20meme%20template.mp4";
 
-  if (!url) {
-    return (
-      <div className="flex aspect-video items-center justify-center bg-black rounded-xl">
-        <p className="text-red-400">Failed to load video</p>
-      </div>
-    )
-  }
+// ── Player Controls Bar ────────────────────────────────────────────
+function PlayerControlsBar({
+  currentEp,
+  totalEps,
+  animeId,
+}: {
+  currentEp: number;
+  totalEps: number;
+  animeId: string;
+}) {
+  const [autoNext, setAutoNext] = useState(true);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [autoSkip, setAutoSkip] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+
+  const base = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 select-none cursor-pointer";
+  const on = "bg-green-main/20 text-green-main";
+  const off = "text-text-muted hover:text-text-main hover:bg-bg-panel";
+  const cls = (active: boolean) => `${base} ${active ? on : off}`;
 
   return (
-    <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
-      <ReactPlayer url={url} controls width="100%" height="100%" />
+    <div className="mt-2 flex flex-wrap items-center gap-1 rounded-xl border border-border-main bg-bg-card px-3 py-2">
+      <button type="button" onClick={() => setFocus(v => !v)} className={cls(focus)}>
+        <Moon className="h-3.5 w-3.5" /> Focus
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" onClick={() => setAutoNext(v => !v)} className={cls(autoNext)}>
+        <FastForward className="h-3.5 w-3.5 fill-current" /> AutoNext
+      </button>
+      <button type="button" onClick={() => setAutoPlay(v => !v)} className={cls(autoPlay)}>
+        <Play className="h-3.5 w-3.5 fill-current" /> AutoPlay
+      </button>
+      <button type="button" onClick={() => setAutoSkip(v => !v)} className={cls(autoSkip)}>
+        <SkipForward className="h-3.5 w-3.5" /> AutoSkip
+      </button>
+      <button type="button" className={`${base} ${off}`}>
+        <Plus className="h-3.5 w-3.5" /> Add Skiptime
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <Link
+        href={currentEp > 1 ? `/watch/${animeId}?ep=${currentEp - 1}` : "#"}
+        className={`${base} ${currentEp > 1 ? off : "text-text-disabled cursor-not-allowed pointer-events-none"}`}
+      >
+        <SkipBack className="h-3.5 w-3.5" /> Prev
+      </Link>
+      <Link
+        href={currentEp < totalEps ? `/watch/${animeId}?ep=${currentEp + 1}` : "#"}
+        className={`${base} ${currentEp < totalEps ? off : "text-text-disabled cursor-not-allowed pointer-events-none"}`}
+      >
+        Next <SkipForward className="h-3.5 w-3.5" />
+      </Link>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" onClick={() => setBookmarked(v => !v)} className={cls(bookmarked)}>
+        <Bookmark className={`h-3.5 w-3.5 ${bookmarked ? "fill-current" : ""}`} /> Bookmark
+      </button>
+      <button type="button" className={`${base} ${off}`}>
+        <Users className="h-3.5 w-3.5" /> W2G
+      </button>
+      <div className="h-4 w-px bg-border-main mx-1" />
+      <button type="button" className={`${base} text-text-muted hover:text-red-400 hover:bg-red-400/10`}>
+        <Bug className="h-3.5 w-3.5" /> Report
+      </button>
     </div>
-  )
+  );
 }
 
-// ── Watch Page ─────────────────────────────────
-export default function WatchPage() {
-  const params = useParams()
-  const searchParams = useSearchParams()
+// ── Real Video Player ──────────────────────────────────────────────
+function VideoPlayer({
+  title,
+  episode,
+}: {
+  title: string;
+  episode: number;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const id = params.id as string
-  const epParam = searchParams.get("ep")
-  const currentEp = epParam ? Number.parseInt(epParam) : 1
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
 
-  const [anime, setAnime] = useState<Anime | null>(null)
-  const [loading, setLoading] = useState(true)
+  const formatTime = (s: number) => {
+    if (!s || isNaN(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
 
-  const [videoUrl, setVideoUrl] = useState("")
-  const [videoLoading, setVideoLoading] = useState(true)
-
-  // 🔹 Fetch anime data
-  useEffect(() => {
-    setLoading(true)
-
-    fetchAnimeById(id).then((data) => {
-      setAnime(data)
-      setLoading(false)
-    })
-  }, [id])
-
-  // 🔹 Fetch stream
-  useEffect(() => {
-    const loadStream = async () => {
-      try {
-        setVideoLoading(true)
-
-        const episodeId = `${id}-episode-${currentEp}`
-
-        const res = await fetch(`/api/stream/${episodeId}`)
-        const data = await res.json()
-
-        setVideoUrl(data?.sources?.[0]?.url || "")
-      } catch (err) {
-        console.error("STREAM ERROR:", err)
-        setVideoUrl("")
-      } finally {
-        setVideoLoading(false)
-      }
+  const resetControlsTimer = () => {
+    setShowControls(true);
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    if (playing) {
+      controlsTimer.current = setTimeout(() => setShowControls(false), 3000);
     }
+  };
 
-    loadStream()
-  }, [id, currentEp])
+  useEffect(() => {
+    return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
+  }, []);
 
-  // 🔹 Loading state
+  const togglePlay = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (vid.paused) { vid.play(); setPlaying(true); }
+    else { vid.pause(); setPlaying(false); }
+  };
+
+  const handleTimeUpdate = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    setCurrentTime(vid.currentTime);
+    setProgress(vid.duration ? (vid.currentTime / vid.duration) * 100 : 0);
+    if (vid.buffered.length > 0) {
+      setBuffered((vid.buffered.end(vid.buffered.length - 1) / vid.duration) * 100);
+    }
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    vid.currentTime = pct * vid.duration;
+  };
+
+  const handleVolumeChange = (val: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.volume = val;
+    setVolume(val);
+    setMuted(val === 0);
+  };
+
+  const toggleMute = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.muted = !vid.muted;
+    setMuted(vid.muted);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setFullscreen(false);
+    }
+  };
+
+  const skip = (seconds: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.currentTime = Math.min(Math.max(vid.currentTime + seconds, 0), vid.duration);
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="group relative aspect-video w-full overflow-hidden rounded-xl bg-black cursor-pointer"
+      onMouseMove={resetControlsTimer}
+      onMouseLeave={() => playing && setShowControls(false)}
+      onClick={togglePlay}
+    >
+      {/* Real HTML5 Video */}
+      <video
+        ref={videoRef}
+        src={TEST_VIDEO_URL}
+        className="h-full w-full object-contain"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        preload="metadata"
+      />
+
+      {/* Play overlay when paused */}
+      {!playing && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-green-main/90 shadow-2xl">
+            <Play className="h-9 w-9 fill-white text-white" />
+          </div>
+          <p className="text-base font-semibold text-white drop-shadow">{title} — Episode {episode}</p>
+          <p className="mt-1 text-xs text-white/60">Click to play</p>
+        </div>
+      )}
+
+      {/* Controls overlay */}
+      <div
+        className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Title */}
+        <div className="px-4 pb-2 pt-4">
+          <p className="text-sm font-semibold text-white drop-shadow">{title} — Episode {episode}</p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="px-4 pb-2">
+          <div
+            className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/20 hover:h-2.5 transition-all duration-150"
+            onClick={handleProgressClick}
+          >
+            <div className="absolute left-0 top-0 h-full rounded-full bg-white/30" style={{ width: `${buffered}%` }} />
+            <div className="absolute left-0 top-0 h-full rounded-full bg-green-main" style={{ width: `${progress}%` }} />
+            <div className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-md" style={{ left: `calc(${progress}% - 7px)` }} />
+          </div>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center gap-2 px-4 pb-3">
+          {/* Play/Pause */}
+          <button type="button" onClick={togglePlay} className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:text-green-main transition-colors">
+            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-white" />}
+          </button>
+
+          {/* Skip back 10s */}
+          <button type="button" onClick={() => skip(-10)} className="text-white/70 hover:text-white transition-colors" title="Back 10s">
+            <SkipBack className="h-4 w-4" />
+          </button>
+
+          {/* Skip forward 10s */}
+          <button type="button" onClick={() => skip(10)} className="text-white/70 hover:text-white transition-colors" title="Forward 10s">
+            <SkipForward className="h-4 w-4" />
+          </button>
+
+          {/* Volume */}
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={toggleMute} className="text-white/70 hover:text-white transition-colors">
+              {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <input
+              type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
+              onChange={e => handleVolumeChange(Number(e.target.value))}
+              className="h-1 w-16 cursor-pointer accent-green-main"
+            />
+          </div>
+
+          {/* Time */}
+          <span className="ml-1 text-xs text-white/70">{formatTime(currentTime)} / {formatTime(duration)}</span>
+
+          <div className="flex-1" />
+
+          {/* Subtitles */}
+          <button type="button" className="text-white/70 hover:text-white transition-colors" title="Subtitles">
+            <Subtitles className="h-4 w-4" />
+          </button>
+
+          {/* Settings */}
+          <button type="button" className="text-white/70 hover:text-white transition-colors" title="Settings">
+            <Settings className="h-4 w-4" />
+          </button>
+
+          {/* Fullscreen */}
+          <button type="button" onClick={toggleFullscreen} className="text-white/70 hover:text-white transition-colors">
+            {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Episodes Sidebar ───────────────────────────────────────────────
+function EpisodesSidebar({
+  episodes,
+  currentEp,
+  animeId,
+}: {
+  episodes: Episode[];
+  currentEp: number;
+  animeId: string;
+}) {
+  const router = useRouter();
+  const PAGE_SIZE = 100;
+  const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
+  const [page, setPage] = useState(Math.ceil(currentEp / PAGE_SIZE) || 1);
+  const [findValue, setFindValue] = useState("");
+
+  useEffect(() => {
+    setPage(Math.ceil(currentEp / PAGE_SIZE) || 1);
+  }, [currentEp]);
+
+  const start = (page - 1) * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, episodes.length);
+  const visibleEpisodes = episodes.slice(start, end);
+
+  const pageLabel = (p: number) => {
+    const s = (p - 1) * PAGE_SIZE + 1;
+    const e = Math.min(p * PAGE_SIZE, episodes.length);
+    return `${String(s).padStart(3, "0")}-${String(e).padStart(3, "0")}`;
+  };
+
+  const handleFind = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const num = Number.parseInt(findValue.trim());
+    if (!num || num < 1 || num > episodes.length) return;
+    setPage(Math.ceil(num / PAGE_SIZE));
+    router.push(`/watch/${animeId}?ep=${num}`);
+    setFindValue("");
+  };
+
+  return (
+    <div className="rounded-xl border border-border-main bg-bg-card">
+      <div className="flex items-center gap-2 border-b border-border-main p-3">
+        <List className="h-4 w-4 text-green-main shrink-0" />
+        <span className="text-sm font-semibold text-text-main">Episodes</span>
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-border-input bg-bg-panel px-2 py-1">
+          <span className="text-xs text-text-muted">#</span>
+          <input
+            type="number" min={1} max={episodes.length}
+            value={findValue}
+            onChange={e => setFindValue(e.target.value)}
+            onKeyDown={handleFind}
+            placeholder="Find"
+            className="w-14 bg-transparent text-xs text-text-main placeholder:text-text-muted outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+        </div>
+        <span className="text-xs text-text-muted shrink-0">{episodes.length} ep</span>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2 border-b border-border-main px-3 py-2">
+          <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:text-text-main hover:bg-bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-xs font-medium text-text-main">{pageLabel(page)}</span>
+          </div>
+          <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:text-text-main hover:bg-bg-panel disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="p-3">
+        <div className="grid grid-cols-6 gap-1.5">
+          {visibleEpisodes.map((ep) => (
+            <Link key={ep.id} href={`/watch/${animeId}?ep=${ep.number}`}
+              className={`flex items-center justify-center rounded-lg py-2 text-xs font-medium transition-colors ${ep.number === currentEp
+                  ? "bg-green-main text-bg-main"
+                  : "bg-bg-panel text-text-secondary hover:bg-green-main/20 hover:text-green-main"
+                }`}>
+              {ep.number}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Watch Page ─────────────────────────────────────────────────────
+function WatchPageContent() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const id = params.id as string;
+  const epParam = searchParams.get("ep");
+  const currentEp = epParam ? Number.parseInt(epParam) : 1;
+
+  const [anime, setAnime] = useState<Anime | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeServer, setActiveServer] = useState(0);
+  const [showComments, setShowComments] = useState(false);
+
+  const servers = ["Server 1 (HD)", "Server 2 (SD)", "Server 3 (Backup)"];
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAnimeById(id).then(data => {
+      setAnime(data);
+      setLoading(false);
+    });
+  }, [id]);
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <p className="text-white">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-bg-main">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-main border-t-transparent" />
+          <p className="text-sm text-text-muted">Loading...</p>
+        </div>
       </div>
-    )
+    );
   }
 
   if (!anime) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <p className="text-white">Anime not found</p>
+      <div className="flex min-h-screen items-center justify-center bg-bg-main">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-text-main">Anime not found</h1>
+          <Link href="/" className="mt-4 text-green-main hover:underline">Go back home</Link>
+        </div>
       </div>
-    )
+    );
   }
 
-  const episodes = generateEpisodes(anime)
+  const episodes = generateEpisodes(anime);
 
   return (
-    <div className="min-h-screen bg-black text-white p-4">
-      {/* Title */}
-      <h1 className="text-2xl font-bold mb-4">
-        {anime.title} — Episode {currentEp}
-      </h1>
-
-      {/* Player */}
-      <VideoPlayer url={videoUrl} loading={videoLoading} />
-
-      {/* Episode Navigation */}
-      <div className="mt-4 flex gap-2 flex-wrap">
-        {episodes.slice(0, 50).map((ep) => (
-          <Link
-            key={ep.id}
-            href={`/watch/${anime.id}?ep=${ep.number}`}
-            className={`px-3 py-1 rounded ${
-              ep.number === currentEp
-                ? "bg-green-500 text-black"
-                : "bg-gray-800 hover:bg-gray-700"
-            }`}
-          >
-            {ep.number}
-          </Link>
-        ))}
+    <div className="min-h-screen bg-bg-main">
+      {/* Breadcrumb */}
+      <div className="mx-auto max-w-[1400px] px-4 py-3 lg:px-8">
+        <div className="flex items-center gap-2 text-sm text-text-muted">
+          <Link href="/" className="hover:text-green-main">Home</Link>
+          <ChevronRight className="h-3 w-3" />
+          <Link href={`/anime/${anime.id}`} className="hover:text-green-main">{anime.title}</Link>
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-text-secondary">Episode {currentEp}</span>
+        </div>
       </div>
+
+      <div className="mx-auto max-w-[1400px] px-4 lg:px-8">
+        <div className="flex flex-col gap-6 lg:flex-row">
+
+          {/* Main Content */}
+          <div className="flex-1">
+            <VideoPlayer title={anime.title} episode={currentEp} />
+
+            <PlayerControlsBar currentEp={currentEp} totalEps={episodes.length} animeId={anime.id} />
+
+            {/* Server Selection */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border-main bg-bg-card px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <Server className="h-3.5 w-3.5 text-text-muted" />
+                <span className="text-xs text-text-muted">Server:</span>
+              </div>
+              {servers.map((server, i) => (
+                <button key={server} type="button" onClick={() => setActiveServer(i)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${i === activeServer ? "bg-green-main text-bg-main" : "bg-bg-panel text-text-secondary hover:text-text-main"
+                    }`}>
+                  {server}
+                </button>
+              ))}
+            </div>
+
+            {/* Anime Info */}
+            <div className="mt-4 rounded-xl border border-border-main bg-bg-card p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="font-heading text-xl font-bold text-text-main">{anime.title}</h1>
+                  <p className="mt-0.5 text-sm text-text-muted">
+                    Episode {currentEp} &middot; {anime.duration} &middot; {anime.type}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="flex h-9 items-center gap-1.5 rounded-lg bg-bg-panel px-3 text-sm text-text-secondary transition-colors hover:text-text-main">
+                    <ThumbsUp className="h-3.5 w-3.5" /> Like
+                  </button>
+                  <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg bg-bg-panel text-text-secondary transition-colors hover:text-text-main">
+                    <Flag className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Comments */}
+            <div className="mt-4">
+              <button type="button" onClick={() => setShowComments(!showComments)}
+                className="flex w-full items-center justify-between rounded-xl border border-border-main bg-bg-card p-4 text-sm font-medium text-text-secondary transition-colors hover:text-text-main">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" /> Comments
+                </div>
+                <span className="text-xs text-text-muted">Sign in to comment</span>
+              </button>
+              {showComments && (
+                <div className="mt-2 rounded-xl border border-border-main bg-bg-card p-6">
+                  <div className="flex flex-col items-center py-6 text-center">
+                    <MessageSquare className="mb-2 h-8 w-8 text-text-disabled" />
+                    <p className="text-sm text-text-muted">No comments yet. Be the first to share your thoughts!</p>
+                    <Link href="/login" className="mt-3 text-sm font-medium text-green-main hover:underline">Sign in to comment</Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="w-full lg:w-72 shrink-0">
+            <EpisodesSidebar episodes={episodes} currentEp={currentEp} animeId={anime.id} />
+          </div>
+
+        </div>
+      </div>
+      <div className="h-12" />
     </div>
-  )
+  );
+}
+
+export default function WatchPage() {
+  return (
+    <Suspense fallback={null}>
+      <WatchPageContent />
+    </Suspense>
+  );
 }

@@ -39,12 +39,26 @@ export function Navbar() {
 
   // Get session on mount and listen for auth changes
   useEffect(() => {
+    // #region agent log
+    fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'19b511',runId:'pre-fix',hypothesisId:'H_CLIENT_LOGGING',location:'components/navbar.tsx:useEffect',message:'Navbar mounted',data:{pathname},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      // #region agent log
+      fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'19b511',runId:'pre-fix',hypothesisId:'H_AUTH',location:'components/navbar.tsx:auth.getSession',message:'Navbar getSession result',data:{hasSession:!!session,hasUser:!!session?.user,userId:session?.user?.id ?? null,email:session?.user?.email ?? null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
+    }).catch((err) => {
+      // #region agent log
+      fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'19b511',runId:'pre-fix',hypothesisId:'H_AUTH',location:'components/navbar.tsx:auth.getSession:catch',message:'Navbar getSession threw',data:{error:String(err)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      // #region agent log
+      fetch('/api/debug-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'19b511',runId:'pre-fix',hypothesisId:'H_AUTH',location:'components/navbar.tsx:auth.onAuthStateChange',message:'Navbar onAuthStateChange',data:{event:_event,hasSession:!!session,hasUser:!!session?.user,userId:session?.user?.id ?? null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
     });
 
     return () => subscription.unsubscribe();

@@ -37,6 +37,9 @@ import {
   type Episode,
 } from "@/lib/anime-data";
 
+const TEST_VIDEO_URL =
+  "https://iovatdcantvchbkpanca.supabase.co/storage/v1/object/public/Videos/Salman%20Khan%20meme%20template.mp4";
+
 // ── Player Controls Bar ────────────────────────────────────────────
 function PlayerControlsBar({
   currentEp, totalEps, animeId,
@@ -94,40 +97,28 @@ function PlayerControlsBar({
   );
 }
 
-// ── Video Player ───────────────────────────────────────────────────
-function VideoPlayer({ title, episode, thumbnail }: { title: string; episode: number; thumbnail: string }) {
+// ── Real Video Player ──────────────────────────────────────────────
+function VideoPlayer({ title, episode }: { title: string; episode: number }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [buffered, setBuffered] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration] = useState(1440);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
 
-  useEffect(() => {
-    const t = setInterval(() => setBuffered(b => Math.min(b + Math.random() * 2, 100)), 400);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    if (playing) {
-      progressTimer.current = setInterval(() => {
-        setCurrentTime(t => {
-          const next = t + 1;
-          setProgress((next / duration) * 100);
-          return next >= duration ? 0 : next;
-        });
-      }, 1000);
-    } else {
-      if (progressTimer.current) clearInterval(progressTimer.current);
-    }
-    return () => { if (progressTimer.current) clearInterval(progressTimer.current); };
-  }, [playing, duration]);
+  const formatTime = (s: number) => {
+    if (!s || isNaN(s)) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
 
   const resetControlsTimer = () => {
     setShowControls(true);
@@ -139,13 +130,45 @@ function VideoPlayer({ title, episode, thumbnail }: { title: string; episode: nu
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
   }, []);
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+  // Single source of truth for toggle
+  const togglePlay = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (vid.paused) { vid.play(); }
+    else { vid.pause(); }
+  };
+
+  const handleTimeUpdate = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    setCurrentTime(vid.currentTime);
+    setProgress(vid.duration ? (vid.currentTime / vid.duration) * 100 : 0);
+    if (vid.buffered.length > 0) {
+      setBuffered((vid.buffered.end(vid.buffered.length - 1) / vid.duration) * 100);
+    }
+  };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const vid = videoRef.current;
+    if (!vid) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    setCurrentTime(pct * duration);
-    setProgress(pct * 100);
+    vid.currentTime = pct * vid.duration;
+  };
+
+  const handleVolumeChange = (val: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.volume = val;
+    setVolume(val);
+    setMuted(val === 0);
+  };
+
+  const toggleMute = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.muted = !vid.muted;
+    setMuted(vid.muted);
   };
 
   const toggleFullscreen = () => {
@@ -153,17 +176,39 @@ function VideoPlayer({ title, episode, thumbnail }: { title: string; episode: nu
     else { document.exitFullscreen(); setFullscreen(false); }
   };
 
+  const skip = (seconds: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.currentTime = Math.min(Math.max(vid.currentTime + seconds, 0), vid.duration);
+  };
+
   return (
-    <div ref={containerRef}
+    <div
+      ref={containerRef}
       className="group relative aspect-video w-full overflow-hidden rounded-xl bg-black"
       onMouseMove={resetControlsTimer}
       onMouseLeave={() => playing && setShowControls(false)}
-      onClick={() => setPlaying(p => !p)}
     >
-      <img src={thumbnail} alt={title} className={`h-full w-full object-cover transition-opacity duration-300 ${playing ? "opacity-30" : "opacity-50"}`} />
+      {/* Real video — handles its own click */}
+      <video
+        ref={videoRef}
+        src={TEST_VIDEO_URL}
+        className="h-full w-full object-contain cursor-pointer"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={() => setDuration(videoRef.current?.duration || 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onClick={togglePlay}
+        preload="metadata"
+      />
 
+      {/* Play overlay — shown when paused */}
       {!playing && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer"
+          onClick={togglePlay}
+        >
           <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-green-main/90 shadow-2xl transition-transform hover:scale-110">
             <Play className="h-9 w-9 fill-white text-white" />
           </div>
@@ -172,38 +217,44 @@ function VideoPlayer({ title, episode, thumbnail }: { title: string; episode: nu
         </div>
       )}
 
-      {playing && showControls && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/30">
-            <Pause className="h-7 w-7 text-white" />
-          </div>
-        </div>
-      )}
-
-      <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
-        onClick={e => e.stopPropagation()}>
+      {/* Controls overlay */}
+      <div
+        className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300 pointer-events-none ${showControls || !playing ? "opacity-100" : "opacity-0"}`}
+      >
+        {/* Title */}
         <div className="px-4 pb-2 pt-4">
           <p className="text-sm font-semibold text-white drop-shadow">{title} — Episode {episode}</p>
         </div>
-        <div className="px-4 pb-2">
-          <div className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/20 hover:h-2.5 transition-all duration-150" onClick={handleProgressClick}>
+
+        {/* Progress bar */}
+        <div className="px-4 pb-2 pointer-events-auto">
+          <div
+            className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/20 hover:h-2.5 transition-all duration-150"
+            onClick={handleProgressClick}
+          >
             <div className="absolute left-0 top-0 h-full rounded-full bg-white/30" style={{ width: `${buffered}%` }} />
             <div className="absolute left-0 top-0 h-full rounded-full bg-green-main" style={{ width: `${progress}%` }} />
             <div className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-md" style={{ left: `calc(${progress}% - 7px)` }} />
           </div>
         </div>
-        <div className="flex items-center gap-2 px-4 pb-3">
-          <button type="button" onClick={() => setPlaying(p => !p)} className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:text-green-main transition-colors">
+
+        {/* Controls row */}
+        <div className="flex items-center gap-2 px-4 pb-3 pointer-events-auto">
+          <button type="button" onClick={togglePlay} className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:text-green-main transition-colors">
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-white" />}
           </button>
-          <button type="button" className="text-white/70 hover:text-white"><SkipBack className="h-4 w-4" /></button>
-          <button type="button" className="text-white/70 hover:text-white"><SkipForward className="h-4 w-4" /></button>
+          <button type="button" onClick={() => skip(-10)} className="text-white/70 hover:text-white" title="Back 10s">
+            <SkipBack className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => skip(10)} className="text-white/70 hover:text-white" title="Forward 10s">
+            <SkipForward className="h-4 w-4" />
+          </button>
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setMuted(m => !m)} className="text-white/70 hover:text-white">
+            <button type="button" onClick={toggleMute} className="text-white/70 hover:text-white">
               {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </button>
-            <input type="range" min={0} max={100} value={muted ? 0 : volume}
-              onChange={e => { setVolume(Number(e.target.value)); setMuted(false); }}
+            <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
+              onChange={e => handleVolumeChange(Number(e.target.value))}
               className="h-1 w-16 cursor-pointer accent-green-main" />
           </div>
           <span className="ml-1 text-xs text-white/70">{formatTime(currentTime)} / {formatTime(duration)}</span>
@@ -220,9 +271,9 @@ function VideoPlayer({ title, episode, thumbnail }: { title: string; episode: nu
 }
 
 // ── Episodes Sidebar ───────────────────────────────────────────────
-function EpisodesSidebar({ episodes, currentEp, animeId, linkPrefix = "/anime" }: {
-  episodes: Episode[]; currentEp: number; animeId: string; linkPrefix?: string;
-}) {
+function EpisodesSidebar({
+  episodes, currentEp, animeId, linkPrefix = "/anime",
+}: { episodes: Episode[]; currentEp: number; animeId: string; linkPrefix?: string }) {
   const router = useRouter();
   const PAGE_SIZE = 100;
   const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
@@ -254,25 +305,19 @@ function EpisodesSidebar({ episodes, currentEp, animeId, linkPrefix = "/anime" }
 
   return (
     <div className="rounded-xl border border-border-main bg-bg-card">
-      {/* Header */}
       <div className="flex items-center gap-2 border-b border-border-main p-3">
         <List className="h-4 w-4 text-green-main shrink-0" />
         <span className="text-sm font-semibold text-text-main">Episodes</span>
         <div className="ml-auto flex items-center gap-1 rounded-lg border border-border-input bg-bg-panel px-2 py-1">
           <span className="text-xs text-text-muted">#</span>
-          <input
-            type="number" min={1} max={episodes.length}
-            value={findValue}
-            onChange={e => setFindValue(e.target.value)}
-            onKeyDown={handleFind}
+          <input type="number" min={1} max={episodes.length} value={findValue}
+            onChange={e => setFindValue(e.target.value)} onKeyDown={handleFind}
             placeholder="Find"
-            className="w-14 bg-transparent text-xs text-text-main placeholder:text-text-muted outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-          />
+            className="w-14 bg-transparent text-xs text-text-main placeholder:text-text-muted outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
         </div>
         <span className="text-xs text-text-muted shrink-0">{episodes.length} ep</span>
       </div>
 
-      {/* Pagination bar */}
       {totalPages > 1 && (
         <div className="flex items-center gap-2 border-b border-border-main px-3 py-2">
           <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -289,7 +334,6 @@ function EpisodesSidebar({ episodes, currentEp, animeId, linkPrefix = "/anime" }
         </div>
       )}
 
-      {/* Grid */}
       <div className="p-3">
         <div className="grid grid-cols-6 gap-1.5">
           {visibleEpisodes.map((ep) => (
@@ -308,16 +352,13 @@ function EpisodesSidebar({ episodes, currentEp, animeId, linkPrefix = "/anime" }
   );
 }
 
-// ── Anime Card (for Relations & Recommended) ───────────────────────
+// ── Sidebar Anime Card ─────────────────────────────────────────────
 function SidebarAnimeCard({ anime }: { anime: Anime }) {
   return (
     <Link href={`/anime/${anime.id}`}
       className="flex gap-3 rounded-xl border border-border-main/50 bg-bg-card p-2 hover:border-green-main/40 hover:bg-bg-panel transition-all">
-      <img
-        src={anime.coverImage || "/placeholder.png"}
-        alt={anime.title}
-        className="h-20 w-14 rounded-lg object-cover shrink-0"
-      />
+      <img src={anime.coverImage || "/placeholder.png"} alt={anime.title}
+        className="h-20 w-14 rounded-lg object-cover shrink-0" />
       <div className="flex flex-col justify-center min-w-0">
         <p className="text-sm font-medium text-text-main line-clamp-2 leading-snug">{anime.title}</p>
         <p className="mt-1 text-xs text-text-muted">{anime.episodes} eps · {anime.type}</p>
@@ -352,18 +393,15 @@ export default function AnimePage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-
     fetchAnimeById(id).then(async data => {
       if (!data) { setLoading(false); return; }
       setAnime(data);
       setEpisodes(generateEpisodes(data));
 
-      // Relations — search by first word of title (e.g. "One Piece" → search "One")
       const firstWord = data.title.split(" ")[0];
       const relResults = await searchAnimeDB(firstWord);
       setRelations(relResults.filter(a => a.id !== id).slice(0, 4));
 
-      // Recommended — by first genre
       if (data.genres?.length) {
         const recResults = await fetchAnimeByGenre(data.genres[0]);
         setRecommended(recResults.filter(a => a.id !== id).slice(0, 4));
@@ -397,7 +435,6 @@ export default function AnimePage() {
 
   return (
     <div className="min-h-screen bg-bg-main">
-      {/* Breadcrumb */}
       <div className="mx-auto max-w-[1400px] px-4 py-3 lg:px-8">
         <div className="flex items-center gap-2 text-sm text-text-muted">
           <Link href="/" className="hover:text-green-main">Home</Link>
@@ -411,17 +448,11 @@ export default function AnimePage() {
       <div className="mx-auto max-w-[1400px] px-4 lg:px-8">
         <div className="flex flex-col gap-6 lg:flex-row">
 
-          {/* Left: player + controls + info + comments */}
           <div className="flex-1 min-w-0">
-            <VideoPlayer
-              title={anime.title}
-              episode={currentEp}
-              thumbnail={anime.bannerImage || anime.coverImage}
-            />
+            <VideoPlayer title={anime.title} episode={currentEp} />
 
             <PlayerControlsBar currentEp={currentEp} totalEps={episodes.length} animeId={anime.id} />
 
-            {/* Server Selection */}
             <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border-main bg-bg-card px-3 py-2">
               <div className="flex items-center gap-1.5">
                 <Server className="h-3.5 w-3.5 text-text-muted" />
@@ -437,7 +468,6 @@ export default function AnimePage() {
               ))}
             </div>
 
-            {/* Anime Info */}
             <div className="mt-4 rounded-xl border border-border-main bg-bg-card p-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -458,7 +488,6 @@ export default function AnimePage() {
               </div>
             </div>
 
-            {/* Comments */}
             <div className="mt-4 rounded-xl border border-border-main bg-bg-card p-4">
               <h2 className="mb-4 text-sm font-semibold text-text-main flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" /> Comments
@@ -490,18 +519,9 @@ export default function AnimePage() {
             </div>
           </div>
 
-          {/* Right: Episodes + Relations + Recommended */}
           <div className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
+            <EpisodesSidebar episodes={episodes} currentEp={currentEp} animeId={anime.id} linkPrefix="/anime" />
 
-            {/* Episodes */}
-            <EpisodesSidebar
-              episodes={episodes}
-              currentEp={currentEp}
-              animeId={anime.id}
-              linkPrefix="/anime"
-            />
-
-            {/* Relations */}
             {relations.length > 0 && (
               <div className="rounded-xl border border-border-main bg-bg-card p-3">
                 <h3 className="mb-3 text-sm font-semibold text-text-main">Relations</h3>
@@ -511,7 +531,6 @@ export default function AnimePage() {
               </div>
             )}
 
-            {/* Recommended */}
             {recommended.length > 0 && (
               <div className="rounded-xl border border-border-main bg-bg-card p-3">
                 <h3 className="mb-3 text-sm font-semibold text-text-main">Recommended</h3>
@@ -520,8 +539,8 @@ export default function AnimePage() {
                 </div>
               </div>
             )}
-
           </div>
+
         </div>
       </div>
       <div className="h-12" />
