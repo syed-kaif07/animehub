@@ -118,7 +118,7 @@ MIT License — free to use and modify.
 
 <div align="center">
 
-Built with ⚡ vibe coding by [Syed Kaifuddin](https://github.com/syed-kaif07)
+Built  by ⚡ [Syed Kaifuddin](https://github.com/syed-kaif07)
 
 **📬 [LinkedIn](https://linkedin.com/in/syed-kaifuddin) · [GitHub](https://github.com/syed-kaif07)**
 
